@@ -1,0 +1,214 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Udio posjećenosti Svjetskih prvenstava prema domaćinima</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/3.7.0/chart.min.js"></script>
+    <style>
+        #attendanceChartContainer {
+            position: relative;
+            display: inline-block;
+        }
+
+        #chartInfo {
+            display: none;
+            position: absolute;
+            top: 0;
+            left: 0;
+            padding: 10px;
+            background-color: #fff;
+            border: 1px solid #ccc;
+            border-radius: 5px;
+            box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+            z-index: 9999;
+            animation: fadeInOut 1s ease-in-out;
+        }
+
+        #chartInfoContent {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+
+        #chartInfo img {
+            max-width: 100px;
+            height: auto;
+            margin-top: 10px;
+        }
+
+        @keyframes fadeInOut {
+            0% {
+                opacity: 0;
+            }
+            100% {
+                opacity: 1;
+            }
+        }
+
+        .chart-legend {
+            display: block; 
+        }
+
+        .chart-legend-item {
+            display: flex;
+            align-items: center;
+        }
+
+        .chart-legend-color {
+            width: 20px;
+            height: 20px;
+            margin-right: 10px;
+        }
+    </style>
+</head>
+<body>
+    <div id="attendanceChartContainer">
+        <canvas id="attendanceChart" width="550" height="270"></canvas>
+
+        <div id="chartInfo">
+            <div id="chartInfoContent">
+                <img id="flag">
+                <div id="hostCountry"></div>
+                <div id="year"></div>
+                <div id="averageAttendance"></div>
+                <div id="attendancePercentage"></div>
+                <div id="continent"></div>
+                <div id="winner"></div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const countryCodes = {
+            "Uruguay": "UY",
+            "Italy": "IT",
+            "France": "FR",
+            "Brazil": "BR",
+            "Switzerland": "CH",
+            "Sweden": "SE",
+            "Chile": "CL",
+            "England": "GB",
+            "Mexico": "MX",
+            "West Germany": "DE",
+            "Argentina": "AR",
+            "Spain": "ES",
+            "United States": "US",
+            "South Korea, Japan": "KR,JP",
+            "Germany": "DE",
+            "South Africa": "ZA",
+            "Russia": "RU",
+            "Qatar": "QA"
+        };
+
+        function getCountryFlagUrl(hostCountry) {
+            const countryCode = countryCodes[hostCountry];
+            if (countryCode) {
+                const [firstCode] = countryCode.split(',');
+                return `https://flagsapi.com/${firstCode}/shiny/64.png`;
+            }
+            return '';
+        }
+
+        fetch('data.json')
+            .then(response => response.json())
+            .then(data => {
+                const hostCountries = data.map(entry => entry.Hosts);
+                const totalAttendance = data.map(entry => entry.Average_Attendance);
+                const colors = {
+                    "South America": 'rgba(255, 99, 132, 0.5)',
+                    "Europe": 'rgba(54, 162, 235, 0.5)',
+                    "North America": 'rgba(255, 206, 86, 0.5)',
+                    "Asia": 'rgba(255, 159, 64, 0.5)',
+                    "Africa": 'rgba(75, 192, 192, 0.5)',
+                    "Oceania": 'rgba(153, 102, 255, 0.5)'
+                };
+
+                const ctx = document.getElementById('attendanceChart').getContext('2d');
+                const attendanceChart = new Chart(ctx, {
+                    type: 'pie',
+                    data: {
+                        labels: hostCountries.map(country => countryCodes[country].split(',')[0].toUpperCase()),
+                        datasets: [{
+                            label: 'Attendance',
+                            data: totalAttendance,
+                            backgroundColor: hostCountries.map(country => colors[data.find(entry => entry.Hosts === country).Continent]),
+                            borderColor: 'rgba(255, 255, 255, 1)', 
+                            borderWidth: 1
+                        }]
+                    },
+                    options: {
+                        responsive: false,
+                        plugins: {
+                            legend: {
+                                display: true,
+                                position: 'right',
+                                labels: {
+                                    generateLabels: function(chart) {
+                                        const labels = chart.data.labels.map((label, i) => ({
+                                            text: label,
+                                            fillStyle: chart.data.datasets[0].backgroundColor[i],
+                                            hidden: !chart.getDataVisibility(i),
+                                            index: i
+                                        }));
+
+                                        const columnCount = Math.ceil(labels.length / 2);
+
+                                        const firstColumn = labels.slice(0, columnCount);
+                                        const secondColumn = labels.slice(columnCount);
+
+                                        return firstColumn.concat(secondColumn);
+                                    }
+                                }
+                            },
+                            title: {
+                                display: false,
+                                text: 'Udio posjećenosti prema domaćinima'
+                            },
+                            tooltip: {
+                                callbacks: {
+                                    label: function(context) {
+                                        const index = context.dataIndex;
+                                        return `${hostCountries[index].slice(0, 3).toUpperCase()}: ${context.formattedValue}`;
+                                    }
+                                }
+                            }
+                        }
+                    }
+                });
+
+                ctx.canvas.addEventListener('click', function(event) {
+                    const activePoint = attendanceChart.getElementsAtEventForMode(event, 'nearest', { intersect: true }, false)[0];
+                    if (activePoint) {
+                        const index = activePoint.index;
+                        const hostCountry = hostCountries[index];
+                        const entry = data.find(item => item.Hosts === hostCountry);
+                        const chartInfo = document.getElementById('chartInfo');
+                        const flagImg = document.getElementById('flag');
+                        flagImg.src = getCountryFlagUrl(entry.Hosts);
+                        document.getElementById('hostCountry').textContent = `Host Country: ${entry.Hosts}`;
+                        document.getElementById('year').textContent = `Year: ${entry.Year}`;
+                        document.getElementById('averageAttendance').textContent = `Average Attendance: ${entry.Average_Attendance}`;
+                        document.getElementById('attendancePercentage').textContent = `Attendance Percentage: ${((entry.Average_Attendance / totalAttendance.reduce((a, b) => a + b, 0)) * 100).toFixed(2)}%`;
+                        document.getElementById('continent').textContent = `Continent: ${entry.Continent}`;
+                        document.getElementById('winner').textContent = `Winner: ${entry.Winner}`;
+
+                        chartInfo.style.display = 'block';
+                        chartInfo.style.left = '20px'; 
+                        chartInfo.style.top = '20px'; 
+
+                        setTimeout(function() {
+                            chartInfo.style.display = 'none';
+                        }, 10000);
+                    }
+                });
+
+                document.addEventListener('click', function(event) {
+                    const chartInfo = document.getElementById('chartInfo');
+                    if (!chartInfo.contains(event.target) && event.target !== attendanceChart.canvas) {
+                        chartInfo.style.display = 'none';
+                    }
+                });
+            });
+    </script>
+</body>
+</html>
+

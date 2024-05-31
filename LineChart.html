@@ -1,0 +1,190 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Trend posjećenosti svjetskih nogometnih prvenstava</title>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      background-color: #f4f4f4;
+      margin: 0;
+      padding: 0;
+    }
+    .chart-container {
+      width: 80%;
+      height: 200px; /* Adjusted height */
+      margin: auto;
+      background-color: #fff;
+      border-radius: 10px;
+      box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+      padding: 10px; /* Adjusted padding */
+    }
+    .filter-container {
+      margin-bottom: 10px; /* Adjusted margin */
+      font-size: 0.8em; /* Adjusted font size */
+    }
+    .range-slider {
+      position: relative;
+      width: 100%;
+    }
+    .range-slider input[type="range"] {
+      -webkit-appearance: none;
+      appearance: none;
+      width: 100%;
+      height: 8px;
+      border-radius: 5px;
+      background: #d3d3d3;
+      outline: none;
+      opacity: 0.7;
+      -webkit-transition: opacity 0.2s;
+      transition: opacity 0.2s;
+    }
+    .range-slider input[type="range"]:hover {
+      opacity: 1;
+    }
+    .range-slider input[type="range"]::-webkit-slider-thumb {
+      -webkit-appearance: none;
+      appearance: none;
+      width: 16px; 
+      height: 16px; 
+      border-radius: 50%;
+      background: #3366FF;
+      cursor: pointer;
+      box-shadow: 0 0 5px rgba(0, 0, 0, 0.2);
+    }
+    .range-slider input[type="range"]::-moz-range-thumb {
+      width: 16px; 
+      height: 16px; 
+      border-radius: 50%;
+      background: #3366FF;
+      cursor: pointer;
+      box-shadow: 0 0 5px rgba(0, 0, 0, 0.2);
+    }
+  </style>
+</head>
+<body>
+  <div class="filter-container">
+    <label for="yearRange">Select Year Range:</label>
+    <div class="range-slider">
+      <input type="range" id="yearRange" name="yearRange" min="1930" max="2022" value="1930" step="4">
+      <input type="range" id="maxYear" name="maxYear" min="1930" max="2022" value="2022" step="4">
+    </div>
+    <span id="selectedYearRange">1930</span> - <span id="maxYearValue">2022</span>
+  </div>
+
+  <div class="chart-container">
+    <canvas id="myChart"></canvas>
+  </div>
+
+  <script>
+    fetch('data.json')
+      .then(response => response.json())
+      .then(data => {
+        const years = data.map(entry => entry.Year);
+        const attendance = data.map(entry => entry.Average_Attendance);
+
+        const ctx = document.getElementById('myChart').getContext('2d');
+        const myChart = new Chart(ctx, {
+          type: 'line',
+          data: {
+            labels: years,
+            datasets: [{
+              label: 'Average Attendance',
+              data: attendance,
+              borderColor: '#3366FF', 
+              backgroundColor: 'rgba(51, 102, 255, 0.2)', 
+              borderWidth: 3,
+              pointRadius: 3, 
+              pointBackgroundColor: '#fff',
+              pointBorderColor: '#3366FF', 
+              pointHoverRadius: 5, 
+              pointHoverBackgroundColor: '#3366FF', 
+              pointHoverBorderColor: '#fff'
+            }]
+          },
+          options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            scales: {
+              y: {
+                beginAtZero: true,
+                ticks: {
+                  callback: function(value, index, values) {
+                    return value.toLocaleString(); 
+                  }
+                },
+                title: {
+                  display: true,
+                  text: 'Average Attendance',
+                  font: {
+                    size: 12 
+                  }
+                }
+              },
+              x: {
+                title: {
+                  display: true,
+                  text: 'Year',
+                  font: {
+                    size: 12 
+                  }
+                }
+              }
+            },
+            plugins: {
+              tooltip: {
+                callbacks: {
+                  label: function(context) {
+                    return 'Attendance: ' + context.parsed.y.toLocaleString(); 
+                  }
+                }
+              },
+              legend: {
+                display: false 
+              },
+              animation: {
+                duration: 1000, 
+                easing: 'easeInOutQuart' 
+              }
+            }
+          }
+        });
+
+        const yearRange = document.getElementById('yearRange');
+        const maxYear = document.getElementById('maxYear');
+        const selectedYearRange = document.getElementById('selectedYearRange');
+        const maxYearValue = document.getElementById('maxYearValue');
+
+        yearRange.addEventListener('input', updateChart);
+        maxYear.addEventListener('input', updateChart);
+
+        function updateChart() {
+          const startYear = parseInt(yearRange.value);
+          const endYear = parseInt(maxYear.value);
+          selectedYearRange.textContent = startYear;
+          maxYearValue.textContent = endYear;
+
+          const filteredYears = years.filter(year => year >= startYear && year <= endYear);
+          const filteredAttendance = attendance.slice(filteredYears.indexOf(startYear), filteredYears.lastIndexOf(endYear) + 1);
+
+          myChart.data.labels = filteredYears;
+          myChart.data.datasets[0].data = filteredAttendance;
+          myChart.update();
+        }
+
+        maxYear.addEventListener('input', function() {
+          yearRange.max = this.value;
+        });
+
+        yearRange.addEventListener('input', function() {
+          maxYear.min = this.value;
+        });
+      })
+      .catch(error => {
+        console.error('Error fetching data:', error);
+      });
+  </script>
+</body>
+</html>

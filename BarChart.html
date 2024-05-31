@@ -1,0 +1,154 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/3.7.0/chart.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2.0.0"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-annotation@1.0.2"></script>
+</head>
+<body>
+
+    <div>
+        <label for="startYear">Početna godina:</label>
+        <input type="number" id="startYear" value="1930" oninput="applyFilter()">
+        <label for="endYear">Završna godina:</label>
+        <input type="number" id="endYear" value="2022" oninput="applyFilter()">
+        
+        <label for="hostCountry">Zemlja domaćin:</label>
+        <input type="text" id="hostCountry" placeholder="Unesite zemlju domaćina" oninput="applyFilter()">
+
+        <label for="continent">Kontinent:</label>
+        <select id="continent" onchange="applyFilter()">
+            <option value="">Svi</option>
+            <option value="Africa">Afrika</option>
+            <option value="Asia">Azija</option>
+            <option value="Europe">Europa</option>
+            <option value="North America">Sjeverna Amerika</option>
+            <option value="Oceania">Oceanija</option>
+            <option value="South America">Južna Amerika</option>
+        </select>
+    </div>
+
+    <canvas id="averageAttendanceChart" width="550" height="300"></canvas>
+
+    <script>
+        let chartData = [];
+        let averageAttendanceChart;
+
+        fetch('data.json')
+            .then(response => response.json())
+            .then(data => {
+                chartData = data;
+                renderChart(chartData);
+            });
+
+        function applyFilter() {
+            const startYear = document.getElementById('startYear').value;
+            const endYear = document.getElementById('endYear').value;
+            const hostCountry = document.getElementById('hostCountry').value.toLowerCase();
+            const continent = document.getElementById('continent').value;
+
+            const filteredData = chartData.filter(entry => {
+                const matchesYear = entry.Year >= startYear && entry.Year <= endYear;
+                const matchesHost = hostCountry ? entry.Hosts.toLowerCase().includes(hostCountry) : true;
+                const matchesContinent = continent ? entry.Continent === continent : true;
+                return matchesYear && matchesHost && matchesContinent;
+            });
+            
+            renderChart(filteredData);
+        }
+
+        function renderChart(data) {
+            const hosts = [];
+            const averageAttendance = [];
+            const colors = {
+                "Africa": 'rgba(75, 192, 192, 0.5)',
+                "Asia": 'rgba(255, 159, 64, 0.5)',
+                "Europe": 'rgba(54, 162, 235, 0.5)',
+                "North America": 'rgba(255, 206, 86, 0.5)',
+                "Oceania": 'rgba(153, 102, 255, 0.5)',
+                "South America": 'rgba(255, 99, 132, 0.5)'
+            };
+
+            data.forEach(entry => {
+                hosts.push({ country: entry.Hosts, year: entry.Year, winner: entry.Winner, continent: entry.Continent });
+                averageAttendance.push(entry.Average_Attendance);
+            });
+
+            const ctx = document.getElementById('averageAttendanceChart').getContext('2d');
+
+            if (averageAttendanceChart) {
+                averageAttendanceChart.destroy();
+            }
+
+            averageAttendanceChart = new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels: hosts.map(h => `${h.country} ${h.year}`),
+                    datasets: [{
+                        label: 'Prosječna posjećenost po utakmici',
+                        data: averageAttendance,
+                        backgroundColor: hosts.map(h => colors[h.continent]),
+                        borderColor: hosts.map(h => colors[h.continent].replace('0.5', '1')),
+                        borderWidth: 1
+                    }]
+                },
+                options: {
+                    responsive: false,
+                    animation: {
+                        duration: 500, 
+                        easing: 'easeInOutQuart', 
+                        from: 0, 
+                        delay: 0 
+                    },
+                    plugins: {
+                        legend: {
+                            display: false,
+                            onClick: (e, legendItem) => {
+                                const index = legendItem.datasetIndex;
+                                const ci = averageAttendanceChart;
+                                const meta = ci.getDatasetMeta(index);
+                                meta.hidden = meta.hidden === null ? !ci.data.datasets[index].hidden : null;
+                                ci.update();
+                            }
+                        },
+                        title: {
+                            display: false,
+                            text: 'Prosječna posjećenost po utakmici za različite države domaćine ili turnire'
+                        },
+                        tooltip: {
+                            callbacks: {
+                                label: function(context) {
+                                    const entry = data[context.dataIndex];
+                                    return [
+                                        `${entry.Hosts} ${entry.Year}`,
+                                        `Average attendance: ${context.raw}`,
+                                        `Winner: ${entry.Winner}`
+                                    ];
+                                }
+                            }
+                        },
+                        datalabels: {
+                            display: false
+                        }
+                    },
+                    scales: {
+                        y: {
+                            beginAtZero: true,
+                            title: {
+                                display: true,
+                                text: 'Prosječna posjećenost'
+                            }
+                        },
+                        x: {
+                            title: {
+                                display: false,
+                                text: 'Domaćini ili turniri'
+                            }
+                        }
+                    }
+                }
+            });
+        }
+    </script>
+</body>
+</html>

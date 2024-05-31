@@ -1,0 +1,208 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <title>FIFA World Cup Statistics</title>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>World Map</title>
+    <style>
+        .country {
+            stroke: #333;
+            stroke-width: 0.5px;
+        }
+        .country-default {
+            fill: #ccc;
+        }
+        .country:hover {
+            fill: orange;
+        }
+        .info-box {
+            position: absolute;
+            background-color: white;
+            border: 1px solid black;
+            padding: 10px;
+            display: none;
+        }
+        .legend {
+            position: absolute;
+            bottom: 20px;
+            right: 20px;
+            display: flex;
+            flex-direction: column;
+            background-color: white;
+            border: 1px solid black;
+            padding: 10px;
+        }
+        .legend-item {
+            display: flex;
+            align-items: center;
+            margin-bottom: 5px;
+        }
+        .legend-color {
+            width: 20px;
+            height: 20px;
+            margin-right: 5px;
+        }
+    </style>
+</head>
+<body>
+    <div id="map"></div>
+    <div id="info-box" class="info-box"></div>
+    <div id="legend" class="legend"></div>
+
+    <script src="https://d3js.org/d3.v6.min.js"></script>
+    <script src="https://d3js.org/topojson.v2.min.js"></script>
+    <script>
+        const width = 960;
+        const height = 600;
+
+        const projection = d3.geoMercator()
+            .scale(150)
+            .translate([width / 2, height / 1.5]);
+
+        const path = d3.geoPath().projection(projection);
+
+        const svg = d3.select("#map")
+            .append("svg")
+            .attr("width", width)
+            .attr("height", height);
+
+        const infoBox = d3.select("#info-box");
+        const legend = d3.select("#legend");
+
+        const countryCodes = {
+            "Uruguay": "UY",
+            "Italy": "IT",
+            "France": "FR",
+            "Brazil": "BR",
+            "Switzerland": "CH",
+            "Sweden": "SE",
+            "Chile": "CL",
+            "England": "GB",
+            "Mexico": "MX",
+            "West Germany": "DE",
+            "Argentina": "AR",
+            "Spain": "ES",
+            "United States": "US",
+            "South Korea, Japan": "KR,JP",
+            "Germany": "DE",
+            "South Africa": "ZA",
+            "Russia": "RU",
+            "Qatar": "QA"
+        };
+
+        Promise.all([
+            d3.json("world-110m.json"),
+            d3.csv("world-country-names.csv"),
+            d3.json("data.json")
+        ]).then(([world, countryNames, data]) => {
+            const countries = topojson.feature(world, world.objects.countries).features;
+
+            const countryNameMap = {};
+            countryNames.forEach(d => {
+                countryNameMap[d.id] = d.name;
+            });
+
+            const hostData = {};
+            const winnerData = {};
+            const continentData = {};
+
+            data.forEach(d => {
+                d.Hosts.split(', ').forEach(host => {
+                    if (!hostData[host]) {
+                        hostData[host] = [];
+                    }
+                    hostData[host].push(d.Year);
+                    continentData[host] = d.Continent;
+                });
+
+                if (!winnerData[d.Winner]) {
+                    winnerData[d.Winner] = [];
+                }
+                winnerData[d.Winner].push(d.Year);
+            });
+
+            const colors = {
+                "South America": 'rgba(255, 99, 132, 0.5)',
+                "Europe": 'rgba(54, 162, 235, 0.5)',
+                "North America": 'rgba(255, 206, 86, 0.5)',
+                "Asia": 'rgba(255, 159, 64, 0.5)',
+                "Africa": 'rgba(75, 192, 192, 0.5)',
+                "Oceania": 'rgba(153, 102, 255, 0.5)'
+            };
+
+            svg.selectAll(".country")
+                .data(countries)
+                .enter().append("path")
+                .attr("class", "country")
+                .attr("d", path)
+                .attr("fill", d => {
+                    const countryName = countryNameMap[d.id];
+                    const continent = continentData[countryName];
+                    return continent ? colors[continent] : "#ccc";
+                })
+                .on("click", function(event, d) {
+                    const countryName = countryNameMap[d.id];
+                    const hosts = hostData[countryName] || [];
+                    const winners = winnerData[countryName] || [];
+
+                    const [[x0, y0], [x1, y1]] = path.bounds(d);
+                    svg.transition().duration(750).call(
+                        zoom.transform,
+                        d3.zoomIdentity
+                            .translate(width / 2, height / 2)
+                            .scale(Math.min(8, 0.9 / Math.max((x1 - x0) / width, (y1 - y0) / height)))
+                            .translate(-(x0 + x1) / 2, -(y0 + y1) / 2)
+                    ).on("end", () => {
+                        const centroid = path.centroid(d);
+                        const [left, top] = [centroid[0], centroid[1] + 20]; 
+
+                        infoBox.html(`
+    <strong>${countryName}</strong><br>
+    Hosts: ${hosts.join(", ")}<br>
+    Winners: ${winners.join(", ")}
+`).style("display", "block")
+  .style("left", `${left}px`)
+  .style("top", `${top - infoBox.node().offsetHeight}px`);
+
+
+const flagUrls = getCountryFlagUrls(countryName);
+flagUrls.forEach(url => {
+    infoBox.append("img")
+        .attr("src", url)
+        .style("display", "block") 
+        .style("width", "100%") 
+        .style("margin", "10px auto"); 
+});
+
+                    });
+                });
+
+            const zoom = d3.zoom()
+                .scaleExtent([1, 8])
+                .on("zoom", (event) => {
+                    svg.selectAll('path').attr('transform', event.transform);
+                });
+
+            svg.call(zoom);
+
+            Object.entries(colors).forEach(([continent, color]) => {
+                const legendItem = legend.append("div").attr("class", "legend-item");
+                legendItem.append("div").attr("class", "legend-color").style("background-color", color);
+                legendItem.append("div").text(continent);
+            });
+        }).catch(error => {
+            console.error('Error loading or processing data:', error);
+        });
+
+        function getCountryFlagUrls(countryName) {
+            const countryCode = countryCodes[countryName];
+            if (countryCode) {
+                const codes = countryCode.split(',');
+                return codes.map(code => `https://flagsapi.com/${code.trim()}/shiny/64.png`);
+            }
+            return [];
+        }
+    </script>
+</body>
+</html>
